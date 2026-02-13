@@ -1,23 +1,34 @@
-<# :
 @echo off
+setlocal
 title PROJECT AXIOM v1.1.0
 echo.
 echo ============================================================
 echo   PROJECT AXIOM v1.1.0 - LAUNCHER
 echo ============================================================
-echo [INIT] %DATE% %TIME%
+echo [INIT] 2026-02-13 18:00:47
 ssh-keygen -R 15.204.238.67 >NUL 2>&1
 echo [INIT] Handing off to PowerShell...
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& {iex (Get-Content '%~f0' -Raw)}"
-if %ERRORLEVEL% NEQ 0 (
+
+:: Extract everything after the __POWERSHELL__ marker into a temp .ps1 file
+set "PSFILE=%TEMP%\axiom-controller.ps1"
+set "FOUND="
+(for /f "usebackq delims=" %%L in ("%~f0") do (
+    if defined FOUND (echo.%%L)
+    if "%%L"==":: __POWERSHELL__" set "FOUND=1"
+)) > "%PSFILE%"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PSFILE%"
+set EC=%ERRORLEVEL%
+del "%PSFILE%" 2>nul
+if %EC% NEQ 0 (
     echo.
-    echo [FAIL] PowerShell exited with code %ERRORLEVEL%
+    echo [FAIL] PowerShell exited with code %EC%
 )
 pause
-exit /b
-#>
+exit /b %EC%
 
+:: __POWERSHELL__
 # ============================================================================
 #  PROJECT AXIOM v1.1.0 - POWERSHELL CONTROLLER
 # ============================================================================
@@ -28,14 +39,12 @@ $ServerIP     = "15.204.238.67"
 $User         = "ubuntu"
 $KeyName      = "id_ed25519_vps_2026"
 $KeyPath      = "$env:USERPROFILE\.ssh\$KeyName"
-$ModulesLocal = Join-Path $PSScriptRoot "modules"
 
-# PSScriptRoot is empty when run via -Command, so derive from the batch file path
-if (-not $ModulesLocal -or -not (Test-Path $ModulesLocal -ErrorAction SilentlyContinue)) {
-    $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-    if (-not $ScriptDir) { $ScriptDir = (Get-Location).Path }
-    $ModulesLocal = Join-Path $ScriptDir "modules"
-}
+# Derive script directory from the temp file's original location
+# The batch launcher sets this env var, or we fall back to current directory
+$ScriptDir = $env:AXIOM_SCRIPT_DIR
+if (-not $ScriptDir) { $ScriptDir = (Get-Location).Path }
+$ModulesLocal = Join-Path $ScriptDir "modules"
 
 if (-not (Test-Path $ModulesLocal)) {
     Write-Host "[ERROR] Cannot find 'modules' directory at: $ModulesLocal" -ForegroundColor Red
@@ -86,7 +95,8 @@ function Wait-ForReboot {
         try {
             $result = & ssh @SSHBase "$User@$ServerIP" "echo READY" 2>$null
             if ($result -match "READY") {
-                Write-Host "`n  [OK] Server is back." -ForegroundColor Green
+                Write-Host ""
+                Write-Host "  [OK] Server is back." -ForegroundColor Green
                 return
             }
         } catch {}
@@ -107,7 +117,8 @@ function Upload-Modules {
 
 function Run-Module {
     param([string]$Module, [string]$Mode = "install")
-    Write-Host "`n  [EXEC] $Module (mode: $Mode)" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  [EXEC] $Module (mode: $Mode)" -ForegroundColor White
     $output = Invoke-Remote "sudo bash /tmp/axiom-modules/$Module $Mode" -PassThru
     if ($output -match "AXIOM_HEALTH_PASS") { return "PASS" }
     if ($output -match "AXIOM_HEALTH_FAIL") { return "FAIL" }
@@ -125,10 +136,12 @@ function Prompt-ServiceVerification {
         } else {
             Write-Host "  [HEALTH] $Label - FAILED or UNKNOWN" -ForegroundColor Red
         }
-        Write-Host "`n  Verify in your browser:" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  Verify in your browser:" -ForegroundColor Cyan
         foreach ($url in $URLs) { Write-Host "    -> $url" -ForegroundColor White }
         if ($FrontEnd) {
-            Write-Host "`n  What to expect:" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "  What to expect:" -ForegroundColor Yellow
             foreach ($line in $FrontEnd) { Write-Host "    $line" -ForegroundColor Gray }
         }
         Write-Host ""
@@ -163,13 +176,14 @@ Write-Host "============================================================" -Foreg
 # ============================================================================
 #  PRE-FLIGHT 1: SERVER ADDRESS
 # ============================================================================
-Write-Host "`n[PRE-FLIGHT 1] Server Address" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[PRE-FLIGHT 1] Server Address" -ForegroundColor Yellow
 Write-Host "  Current IP: $ServerIP" -ForegroundColor White
 Write-Host "  Current user: $User" -ForegroundColor White
 $newIP = Read-Host "  New IP (ENTER to keep current)"
 if ($newIP) {
     $ServerIP = $newIP
-    & ssh-keygen -R $ServerIP 2>$null | Out-Null
+    & ssh-keygen -R $ServerIP 2>$null
     Write-Host "  [OK] IP changed to $ServerIP" -ForegroundColor Green
 }
 $newUser = Read-Host "  New SSH user (ENTER to keep '$User')"
@@ -178,7 +192,8 @@ if ($newUser) { $User = $newUser }
 # ============================================================================
 #  PRE-FLIGHT 2: SSH KEY
 # ============================================================================
-Write-Host "`n[PRE-FLIGHT 2] SSH Key" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[PRE-FLIGHT 2] SSH Key" -ForegroundColor Yellow
 if (Test-Path $KeyPath) {
     Write-Host "  [OK] SSH key found: $KeyPath" -ForegroundColor Green
 } else {
@@ -195,7 +210,7 @@ if (Test-Path $KeyPath) {
         }
         Write-Host "    [N] Generate new key" -ForegroundColor Gray
         $pick = Read-Host "  Pick key number or N"
-        if ($pick -ne "N" -and $pick -match '^\d+$') {
+        if ($pick -ne "N" -and $pick -match '^\\d+$') {
             $idx = [int]$pick - 1
             if ($idx -ge 0 -and $idx -lt $keys.Count) {
                 $KeyPath = $keys[$idx].FullName
@@ -212,18 +227,20 @@ if (Test-Path $KeyPath) {
     }
     if (Test-Path "$KeyPath.pub") {
         $pubKey = Get-Content "$KeyPath.pub"
-        Write-Host "`n  PUBLIC KEY (paste into VPS provider):" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  PUBLIC KEY (paste into VPS provider):" -ForegroundColor Cyan
         Write-Host "  $pubKey" -ForegroundColor White
         $pubKey | Set-Clipboard
         Write-Host "  (Copied to clipboard)" -ForegroundColor Green
-        Read-Host "`n  Press ENTER after the key is on your server"
+        Read-Host "  Press ENTER after the key is on your server"
     }
 }
 
 # ============================================================================
 #  PRE-FLIGHT 3: CONNECTION TEST
 # ============================================================================
-Write-Host "`n[PRE-FLIGHT 3] SSH Connection Test" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[PRE-FLIGHT 3] SSH Connection Test" -ForegroundColor Yellow
 $connected = $false
 for ($attempt = 1; $attempt -le 3; $attempt++) {
     Write-Host "  Testing $User@$ServerIP (attempt $attempt)..." -ForegroundColor White
@@ -247,22 +264,25 @@ if (-not $connected) {
 # ============================================================================
 #  PRE-FLIGHT 4: OS DETECTION
 # ============================================================================
-Write-Host "`n[PRE-FLIGHT 4] OS Detection" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[PRE-FLIGHT 4] OS Detection" -ForegroundColor Yellow
 $osInfo = Invoke-Remote 'cat /etc/os-release 2>/dev/null | grep -E "^(PRETTY_NAME|ID|VERSION_ID)=" ; uname -rm' -PassThru
 Write-Host "  $osInfo" -ForegroundColor Gray
 
 # ============================================================================
 #  PRE-FLIGHT 5: SNAPSHOT REMINDER
 # ============================================================================
-Write-Host "`n[PRE-FLIGHT 5] Snapshot Reminder" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[PRE-FLIGHT 5] Snapshot Reminder" -ForegroundColor Yellow
 Write-Host "  Consider taking a VPS snapshot before deploying." -ForegroundColor White
 Write-Host "  OVH: Control Panel -> VPS -> Snapshot -> Create" -ForegroundColor Gray
-Read-Host "`n  Press ENTER to begin deployment (Ctrl+C to abort)"
+Read-Host "  Press ENTER to begin deployment (Ctrl+C to abort)"
 
 # ============================================================================
 #  STAGE 1: SYSTEM PREPARATION
 # ============================================================================
-Write-Host "`n[STAGE 1] System Preparation" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[STAGE 1] System Preparation" -ForegroundColor Yellow
 Upload-Modules
 $output = Invoke-Remote "sudo bash /tmp/axiom-modules/01-system-prep.sh" -PassThru
 if ($output -match "AXIOM_REBOOT_REQUIRED") {
@@ -275,16 +295,19 @@ if ($output -match "AXIOM_REBOOT_REQUIRED") {
 # ============================================================================
 #  STAGE 2: CORE PLATFORM
 # ============================================================================
-Write-Host "`n[STAGE 2] Core Platform" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[STAGE 2] Core Platform" -ForegroundColor Yellow
 Invoke-Remote "sudo bash /tmp/axiom-modules/02-core-platform.sh"
 Write-Host "  [OK] Docker and packages installed." -ForegroundColor Green
 
 # ============================================================================
 #  STAGE 3: CLOUDFLARE TUNNEL
 # ============================================================================
-Write-Host "`n[STAGE 3] Cloudflare Tunnel" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[STAGE 3] Cloudflare Tunnel" -ForegroundColor Yellow
 Invoke-Remote "sudo bash /tmp/axiom-modules/03-cloudflare-tunnel.sh"
-Write-Host "`n  MANUAL STEP: Cloudflare Authentication" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  MANUAL STEP: Cloudflare Authentication" -ForegroundColor Yellow
 Write-Host "  A URL will appear. Copy it, open in browser, authorize." -ForegroundColor White
 Read-Host "  Press ENTER to start authentication"
 Invoke-Remote "cloudflared tunnel login" -Interactive
@@ -299,14 +322,16 @@ if ($tunnelOut -match "AXIOM_TUNNEL_HEALTHY") {
 # ============================================================================
 #  STAGE 4: FIREWALL
 # ============================================================================
-Write-Host "`n[STAGE 4] Firewall" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[STAGE 4] Firewall" -ForegroundColor Yellow
 Invoke-Remote "sudo bash /tmp/axiom-modules/04-firewall.sh"
 Write-Host "  [OK] Firewall active. Only SSH (22) exposed." -ForegroundColor Green
 
 # ============================================================================
 #  STAGE 5: SERVICE DEPLOYMENT
 # ============================================================================
-Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "  STEPPED SERVICE DEPLOYMENT" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
@@ -318,7 +343,7 @@ Prompt-ServiceVerification `
     -Label "Cockpit" `
     -URLs @("https://d.$domain") `
     -FrontEnd @("System admin panel - login with your server SSH credentials",
-        "Browser may warn about certificate (click Advanced > Proceed)",
+        "Browser may warn about certificate (click Advanced then Proceed)",
         "This is the first proof-of-life through the tunnel"
     )
 
@@ -352,7 +377,8 @@ Prompt-ServiceVerification `
 # ============================================================================
 #  DEPLOYMENT COMPLETE
 # ============================================================================
-Write-Host "`n============================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Green
 Write-Host "  AXIOM v1.1.0 DEPLOYMENT COMPLETE" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""
