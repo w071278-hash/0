@@ -35,7 +35,7 @@ exit /b %EC%
 # ============================================================================
 #  PROJECT AXIOM v1.1.0 - POWERSHELL CONTROLLER
 # ============================================================================
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 # --- CONFIGURATION (edit these) ---
 $ServerIP     = "15.204.238.67"
@@ -76,18 +76,28 @@ function Invoke-Remote {
         & ssh @sshArgs
         return $LASTEXITCODE
     } elseif ($PassThru) {
-        $output = & ssh @sshArgs 2>&1 | Out-String
+        $output = & ssh @sshArgs | Out-String
         Write-Host $output
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[WARN] SSH command exited with code $LASTEXITCODE" -ForegroundColor Yellow
+        }
         return $output
     } else {
-        & ssh @sshArgs 2>&1 | ForEach-Object { Write-Host $_ }
+        & ssh @sshArgs | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[WARN] SSH command exited with code $LASTEXITCODE" -ForegroundColor Yellow
+        }
     }
 }
 
 function Send-File {
     param([string]$Local, [string]$Remote)
     $scpArgs = @("-o", "LogLevel=ERROR", "-o", "StrictHostKeyChecking=no", "-i", $KeyPath)
-    & scp @scpArgs $Local "${User}@${ServerIP}:${Remote}" 2>&1 | Out-Null
+    & scp @scpArgs $Local "${User}@${ServerIP}:${Remote}" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] SCP failed with exit code $LASTEXITCODE" -ForegroundColor Red
+        throw "File upload failed (exit code $LASTEXITCODE): $Local -> $Remote"
+    }
 }
 
 function Wait-ForReboot {
@@ -95,7 +105,10 @@ function Wait-ForReboot {
     for ($i = 0; $i -lt 60; $i++) {
         Start-Sleep -Seconds 5;
         try {
+            $prevErrorAction = $ErrorActionPreference
+            $ErrorActionPreference = "SilentlyContinue"
             $result = & ssh @SSHBase "$User@$ServerIP" "echo READY" 2>$null
+            $ErrorActionPreference = $prevErrorAction
             if ($result -match "READY") {
                 Write-Host ""
                 Write-Host "  [OK] Server is back." -ForegroundColor Green
@@ -249,7 +262,7 @@ Write-Host "[PRE-FLIGHT 3] SSH Connection Test" -ForegroundColor Yellow
 $connected = $false
 for ($attempt = 1; $attempt -le 3; $attempt++) {
     Write-Host "  Testing $User@$ServerIP (attempt $attempt)..." -ForegroundColor White
-    $testResult = & ssh @SSHBase "$User@$ServerIP" "echo AXIOM_SSH_OK" 2>&1 | Out-String
+    $testResult = & ssh @SSHBase "$User@$ServerIP" "echo AXIOM_SSH_OK" | Out-String
     if ($testResult -match "AXIOM_SSH_OK") {
         Write-Host "  [OK] Connected!" -ForegroundColor Green
         $connected = $true
