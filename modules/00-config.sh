@@ -17,6 +17,7 @@
 #    06  Agent Zero triad (a. b. c.)
 #    07  Dockge (e.)
 #    08  FileBrowser (f.)
+    09  Ollama (g.)
 # ============================================================================
 
 # --- VERSION ---
@@ -66,7 +67,8 @@ SERVICES=(
     [d]="cockpit|9090|9090|SYSTEM|System administration panel"
     [e]="dockge|5001|5001|louislam/dockge:1|Docker container management"
     [f]="filebrowser|8080|80|filebrowser/filebrowser:latest|Web file manager"
-    # [g] through [z] — available for future services
+    [g]="ollama|11434|11434|ollama/ollama:latest|Local AI model server"
+    # [h] through [z] — available for future services
 )
 
 # --- AGENT ZERO SHARED CONFIG ---
