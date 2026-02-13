@@ -303,7 +303,8 @@ wait_for_container "my-service" 120  # 2 minute timeout
 ### Using service registry
 ```bash
 # Extract service info from config
-# 'g' represents the next available subdomain letter after a-f
+# Services a-f are currently allocated (see 00-config.sh SERVICES array)
+# Use next available letter (g, h, i, etc.) for new services
 IFS='|' read -r name host_port container_port image description <<< "${SERVICES[g]}"
 log "Deploying $name ($description) on port $host_port"
 ```
