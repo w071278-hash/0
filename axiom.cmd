@@ -5,7 +5,7 @@ echo.
 echo ============================================================
 echo   PROJECT AXIOM v1.1.0 - LAUNCHER
 echo ============================================================
-echo [INIT] 2026-02-13 18:00:47
+echo [INIT] 2026-02-13 18:12:40
 ssh-keygen -R 15.204.238.67 >NUL 2>&1
 echo [INIT] Handing off to PowerShell...
 echo.
@@ -17,6 +17,9 @@ set "FOUND="
     if defined FOUND (echo.%%L)
     if "%%L"==":: __POWERSHELL__" set "FOUND=1"
 )) > "%PSFILE%"
+
+:: Pass original script directory to PowerShell via environment variable
+set "AXIOM_SCRIPT_DIR=%~dp0"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PSFILE%"
 set EC=%ERRORLEVEL%
@@ -40,8 +43,7 @@ $User         = "ubuntu"
 $KeyName      = "id_ed25519_vps_2026"
 $KeyPath      = "$env:USERPROFILE\.ssh\$KeyName"
 
-# Derive script directory from the temp file's original location
-# The batch launcher sets this env var, or we fall back to current directory
+# Derive script directory from env var set by batch launcher
 $ScriptDir = $env:AXIOM_SCRIPT_DIR
 if (-not $ScriptDir) { $ScriptDir = (Get-Location).Path }
 $ModulesLocal = Join-Path $ScriptDir "modules"
@@ -91,7 +93,7 @@ function Send-File {
 function Wait-ForReboot {
     Write-Host "  [WAIT] Server is rebooting..." -ForegroundColor Cyan
     for ($i = 0; $i -lt 60; $i++) {
-        Start-Sleep -Seconds 5
+        Start-Sleep -Seconds 5;
         try {
             $result = & ssh @SSHBase "$User@$ServerIP" "echo READY" 2>$null
             if ($result -match "READY") {
@@ -210,7 +212,7 @@ if (Test-Path $KeyPath) {
         }
         Write-Host "    [N] Generate new key" -ForegroundColor Gray
         $pick = Read-Host "  Pick key number or N"
-        if ($pick -ne "N" -and $pick -match '^\\d+$') {
+        if ($pick -ne "N" -and $pick -match '^\d+$') {
             $idx = [int]$pick - 1
             if ($idx -ge 0 -and $idx -lt $keys.Count) {
                 $KeyPath = $keys[$idx].FullName
@@ -266,8 +268,9 @@ if (-not $connected) {
 # ============================================================================
 Write-Host ""
 Write-Host "[PRE-FLIGHT 4] OS Detection" -ForegroundColor Yellow
-$osInfo = Invoke-Remote 'cat /etc/os-release 2>/dev/null | grep -E "^(PRETTY_NAME|ID|VERSION_ID)=" ; uname -rm' -PassThru
-Write-Host "  $osInfo" -ForegroundColor Gray
+$osCmd = "grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 ; uname -rm"
+$osInfo = Invoke-Remote $osCmd -PassThru
+Write-Host "  Detected: $($osInfo.Trim())" -ForegroundColor Gray
 
 # ============================================================================
 #  PRE-FLIGHT 5: SNAPSHOT REMINDER
@@ -336,14 +339,21 @@ Write-Host "  STEPPED SERVICE DEPLOYMENT" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
 # Get domain from config
-$domain = (Invoke-Remote 'source /tmp/axiom-modules/00-config.sh && echo $AXIOM_DOMAIN' -PassThru).Trim()
+$domainCmd = 'source /tmp/axiom-modules/00-config.sh && echo AXIOM_DOMAIN_IS_$AXIOM_DOMAIN'
+$domainOut = Invoke-Remote $domainCmd -PassThru
+if ($domainOut -match "AXIOM_DOMAIN_IS_(.+)") {
+    $domain = $Matches[1].Trim()
+} else {
+    $domain = "willowcherry.us"
+    Write-Host "  [WARN] Could not read domain from config, using default: $domain" -ForegroundColor Yellow
+}
 
 Prompt-ServiceVerification `
     -Module "05-cockpit.sh" `
     -Label "Cockpit" `
     -URLs @("https://d.$domain") `
     -FrontEnd @("System admin panel - login with your server SSH credentials",
-        "Browser may warn about certificate (click Advanced then Proceed)",
+        "Browser may warn about certificate - click Advanced then Proceed",
         "This is the first proof-of-life through the tunnel"
     )
 
@@ -352,7 +362,7 @@ Prompt-ServiceVerification `
     -Label "Agent Zero Triad" `
     -URLs @("https://a.$domain","https://b.$domain","https://c.$domain") `
     -FrontEnd @("AI agent chat interface",
-        "Password is set in modules/00-config.sh (default: AxiomSecureRFC2026!)",
+        "Password is set in modules/00-config.sh",
         "Three independent instances for redundancy"
     )
 
