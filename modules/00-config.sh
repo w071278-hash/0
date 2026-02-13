@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-#  PROJECT AXIOM v1.0.0 - CONFIGURATION
+#  PROJECT AXIOM v1.1.0 - CONFIGURATION
 # ============================================================================
 #  Single source of truth. Every module sources this file first.
 #
@@ -19,21 +19,44 @@
 #    08  FileBrowser (f.)
 # ============================================================================
 
-AXIOM_VERSION="1.0.0"
+# --- VERSION ---
+# Update this when releasing a new version. Used in logs and status displays.
+AXIOM_VERSION="1.1.0"
+
+# --- PRIMARY DOMAIN ---
+# Your base domain for the deployment. All services will be subdomains of this.
+# Example: "willowcherry.us" yields a.willowcherry.us, b.willowcherry.us, etc.
 AXIOM_DOMAIN="willowcherry.us"
+
+# --- CLOUDFLARE TUNNEL ---
+# Name for your Cloudflare tunnel. Must be unique in your Cloudflare account.
 AXIOM_TUNNEL_NAME="axiom-tunnel"
+
+# --- PATHS ---
+# Centralized log file for all deployment operations.
 AXIOM_LOG="/var/log/axiom-deploy.log"
+
+# Directory where Cloudflare tunnel credentials are stored.
 AXIOM_CREDS_DIR="/etc/cloudflared"
+
+# Root directory for Docker stack configuration files (used by Dockge, etc).
 AXIOM_STACKS_DIR="/opt/stacks"
 
 # --- SERVICE REGISTRY ---
 # Format: SERVICES[letter]="name|host_port|container_internal_port|image|description"
+#
 #   - letter         = subdomain (a -> a.willowcherry.us)
 #   - name           = Docker container name (or systemd service name)
 #   - host_port      = port on the host machine
 #   - container_port = port inside the container (mapped to host_port)
 #   - image          = Docker image, or "SYSTEM" for native services
 #   - description    = human-readable label
+#
+# To add a new service:
+#   1. Pick the next available letter (g, h, i, etc.)
+#   2. Add a line following the format above
+#   3. Create a deployment module (e.g., modules/09-myservice.sh)
+#   4. Add the subdomain to your Cloudflare tunnel config
 
 declare -A SERVICES
 SERVICES=(
@@ -47,7 +70,12 @@ SERVICES=(
 )
 
 # --- AGENT ZERO SHARED CONFIG ---
+# Password for Remote Function Calling (RFC) in Agent Zero instances.
+# SECURITY NOTE: Change this to a strong, unique password before deployment.
 AZ_RFC_PASSWORD="AxiomSecureRFC2026!"
+
+# CORS allowed origins for Agent Zero. "*" allows all origins (use with caution).
+# For production, set this to specific domains: "https://a.willowcherry.us,https://b.willowcherry.us"
 AZ_ALLOWED_ORIGINS="*"
 
 # --- FIELD PARSERS ---
