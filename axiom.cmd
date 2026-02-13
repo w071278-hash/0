@@ -9,7 +9,7 @@ echo [INIT] %DATE% %TIME%
 ssh-keygen -R 15.204.238.67 >NUL 2>&1
 echo [INIT] Handing off to PowerShell...
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~f0"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& {iex (Get-Content '%~f0' -Raw)}"
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [FAIL] PowerShell exited with code %ERRORLEVEL%
@@ -30,8 +30,16 @@ $KeyName      = "id_ed25519_vps_2026"
 $KeyPath      = "$env:USERPROFILE\.ssh\$KeyName"
 $ModulesLocal = Join-Path $PSScriptRoot "modules"
 
+# PSScriptRoot is empty when run via -Command, so derive from the batch file path
+if (-not $ModulesLocal -or -not (Test-Path $ModulesLocal -ErrorAction SilentlyContinue)) {
+    $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+    if (-not $ScriptDir) { $ScriptDir = (Get-Location).Path }
+    $ModulesLocal = Join-Path $ScriptDir "modules"
+}
+
 if (-not (Test-Path $ModulesLocal)) {
     Write-Host "[ERROR] Cannot find 'modules' directory at: $ModulesLocal" -ForegroundColor Red
+    Write-Host "  Make sure you run this from the axiom folder." -ForegroundColor Yellow
     exit 1
 }
 
@@ -176,6 +184,7 @@ if (Test-Path $KeyPath) {
 } else {
     Write-Host "  [WARN] Key not found at: $KeyPath" -ForegroundColor Yellow
     $sshDir = "$env:USERPROFILE\.ssh"
+    if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }
     $keys = Get-ChildItem "$sshDir\id_*" -ErrorAction SilentlyContinue | Where-Object { $_.Extension -ne ".pub" }
     if ($keys.Count -gt 0) {
         Write-Host "  Found existing keys:" -ForegroundColor White
@@ -308,9 +317,8 @@ Prompt-ServiceVerification `
     -Module "05-cockpit.sh" `
     -Label "Cockpit" `
     -URLs @("https://d.$domain") `
-    -FrontEnd @(
-        "System admin panel - login with your server SSH credentials",
-        "Browser may warn about self-signed certificate (click Advanced > Proceed)",
+    -FrontEnd @("System admin panel - login with your server SSH credentials",
+        "Browser may warn about certificate (click Advanced > Proceed)",
         "This is the first proof-of-life through the tunnel"
     )
 
@@ -318,8 +326,7 @@ Prompt-ServiceVerification `
     -Module "06-agent-zero.sh" `
     -Label "Agent Zero Triad" `
     -URLs @("https://a.$domain","https://b.$domain","https://c.$domain") `
-    -FrontEnd @(
-        "AI agent chat interface",
+    -FrontEnd @("AI agent chat interface",
         "Password is set in modules/00-config.sh (default: AxiomSecureRFC2026!)",
         "Three independent instances for redundancy"
     )
@@ -328,8 +335,7 @@ Prompt-ServiceVerification `
     -Module "07-dockge.sh" `
     -Label "Dockge" `
     -URLs @("https://e.$domain") `
-    -FrontEnd @(
-        "Docker container management dashboard",
+    -FrontEnd @("Docker container management dashboard",
         "First visit will prompt you to create an admin account",
         "Use this to manage containers and view logs"
     )
@@ -338,8 +344,7 @@ Prompt-ServiceVerification `
     -Module "08-filebrowser.sh" `
     -Label "FileBrowser" `
     -URLs @("https://f.$domain") `
-    -FrontEnd @(
-        "Web file explorer with full filesystem access",
+    -FrontEnd @("Web file explorer with full filesystem access",
         "DEFAULT LOGIN: admin / admin - CHANGE THIS IMMEDIATELY",
         "Browse to /opt/stacks for Docker compose files"
     )
