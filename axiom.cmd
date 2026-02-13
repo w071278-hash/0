@@ -114,6 +114,9 @@ function Upload-Modules {
         Write-Host "    -> $($file.Name)" -ForegroundColor DarkGray
         Send-File $file.FullName "/tmp/axiom-modules/$($file.Name)"
     }
+    # Safety measure: strip CRLF line endings in case files were checked out with Windows line endings
+    # This prevents bash errors like "$'\r': command not found" when scripts run on Linux
+    Invoke-Remote "find /tmp/axiom-modules/ -name '*.sh' -exec sed -i 's/\r$//' {} +" | Out-Null
     Write-Host "  [OK] All modules uploaded." -ForegroundColor Green
 }
 
