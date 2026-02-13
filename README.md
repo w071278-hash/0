@@ -268,7 +268,8 @@ sudo grep ERROR /var/log/axiom-deploy.log
 
 ```
 .
-├── axiom.cmd              # Main Windows controller
+├── axiom.cmd              # Windows batch launcher
+├── axiom.ps1              # PowerShell deployment controller
 ├── modules/               # Deployment modules
 │   ├── 00-config.sh      # Configuration
 │   ├── lib.sh            # Shared library

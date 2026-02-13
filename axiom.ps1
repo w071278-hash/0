@@ -1,40 +1,7 @@
-@echo off
-setlocal
-title PROJECT AXIOM v1.1.0
-echo.
-echo ============================================================
-echo   PROJECT AXIOM v1.1.0 - LAUNCHER
-echo ============================================================
-echo [INIT] 2026-02-13 20:15:00
-ssh-keygen -R 15.204.238.67 >NUL 2>&1
-echo [INIT] Handing off to PowerShell...
-echo.
-
-:: Set script directory for PowerShell to find modules
-set "AXIOM_SCRIPT_DIR=%~dp0"
-
-:: Call the standalone PowerShell script
-set "PSFILE=%~dp0axiom.ps1"
-if not exist "%PSFILE%" (
-    echo [ERROR] Cannot find axiom.ps1 in the same directory as axiom.cmd
-    pause
-    exit /b 1
-)
-
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PSFILE%"
-set EC=%ERRORLEVEL%
-if %EC% NEQ 0 (
-    echo.
-    echo [FAIL] PowerShell exited with code %EC%
-)
-pause
-exit /b %EC%
-
-:: __POWERSHELL__
 # ============================================================================
 #  PROJECT AXIOM v1.1.0 - POWERSHELL CONTROLLER
 # ============================================================================
-$ErrorActionPreference = "Continue"
+$ErrorActionPreference = "Stop"
 
 # --- CONFIGURATION (edit these) ---
 $ServerIP     = "15.204.238.67"
@@ -42,9 +9,12 @@ $User         = "ubuntu"
 $KeyName      = "id_ed25519_vps_2026"
 $KeyPath      = "$env:USERPROFILE\.ssh\$KeyName"
 
-# Derive script directory from env var set by batch launcher
+# Derive script directory from env var set by batch launcher, or from script location
 $ScriptDir = $env:AXIOM_SCRIPT_DIR
-if (-not $ScriptDir) { $ScriptDir = (Get-Location).Path }
+if (-not $ScriptDir) { 
+    $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    if (-not $ScriptDir) { $ScriptDir = (Get-Location).Path }
+}
 $ModulesLocal = Join-Path $ScriptDir "modules"
 
 if (-not (Test-Path $ModulesLocal)) {
@@ -75,28 +45,18 @@ function Invoke-Remote {
         & ssh @sshArgs
         return $LASTEXITCODE
     } elseif ($PassThru) {
-        $output = & ssh @sshArgs | Out-String
+        $output = & ssh @sshArgs 2>&1 | Out-String
         Write-Host $output
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[WARN] SSH command exited with code $LASTEXITCODE" -ForegroundColor Yellow
-        }
         return $output
     } else {
-        & ssh @sshArgs | ForEach-Object { Write-Host $_ }
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[WARN] SSH command exited with code $LASTEXITCODE" -ForegroundColor Yellow
-        }
+        & ssh @sshArgs 2>&1 | ForEach-Object { Write-Host $_ }
     }
 }
 
 function Send-File {
     param([string]$Local, [string]$Remote)
     $scpArgs = @("-o", "LogLevel=ERROR", "-o", "StrictHostKeyChecking=no", "-i", $KeyPath)
-    & scp @scpArgs $Local "${User}@${ServerIP}:${Remote}" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[ERROR] SCP failed with exit code $LASTEXITCODE" -ForegroundColor Red
-        throw "File upload failed (exit code $LASTEXITCODE): $Local -> $Remote"
-    }
+    & scp @scpArgs $Local "${User}@${ServerIP}:${Remote}" 2>&1 | Out-Null
 }
 
 function Wait-ForReboot {
@@ -104,10 +64,7 @@ function Wait-ForReboot {
     for ($i = 0; $i -lt 60; $i++) {
         Start-Sleep -Seconds 5;
         try {
-            $prevErrorAction = $ErrorActionPreference
-            $ErrorActionPreference = "SilentlyContinue"
             $result = & ssh @SSHBase "$User@$ServerIP" "echo READY" 2>$null
-            $ErrorActionPreference = $prevErrorAction
             if ($result -match "READY") {
                 Write-Host ""
                 Write-Host "  [OK] Server is back." -ForegroundColor Green
@@ -261,7 +218,7 @@ Write-Host "[PRE-FLIGHT 3] SSH Connection Test" -ForegroundColor Yellow
 $connected = $false
 for ($attempt = 1; $attempt -le 3; $attempt++) {
     Write-Host "  Testing $User@$ServerIP (attempt $attempt)..." -ForegroundColor White
-    $testResult = & ssh @SSHBase "$User@$ServerIP" "echo AXIOM_SSH_OK" | Out-String
+    $testResult = & ssh @SSHBase "$User@$ServerIP" "echo AXIOM_SSH_OK" 2>&1 | Out-String
     if ($testResult -match "AXIOM_SSH_OK") {
         Write-Host "  [OK] Connected!" -ForegroundColor Green
         $connected = $true
