@@ -96,7 +96,7 @@ function Send-File {
     & scp @scpArgs $Local "${User}@${ServerIP}:${Remote}" 2>$null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[ERROR] SCP failed with exit code $LASTEXITCODE" -ForegroundColor Red
-        throw "File upload failed: $Local -> $Remote"
+        throw "File upload failed (exit code $LASTEXITCODE): $Local -> $Remote"
     }
 }
 
