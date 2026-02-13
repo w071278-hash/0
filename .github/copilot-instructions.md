@@ -22,7 +22,8 @@
 
 ```
 .
-├── axiom.cmd                 # Windows batch launcher → PowerShell controller
+├── axiom.cmd                 # Windows batch launcher
+├── axiom.ps1                 # PowerShell deployment controller
 ├── setup.cmd                 # Alternative setup script
 ├── modules/                  # Bash deployment modules (run on VPS)
 │   ├── 00-config.sh         # Single source of truth for configuration
@@ -134,7 +135,7 @@ git --no-pager diff
    docker start container  # starts container
    ```
 
-### PowerShell (axiom.cmd embedded script)
+### PowerShell (axiom.ps1)
 
 1. **Error Handling**: Use `$ErrorActionPreference = "Stop"`
 2. **Output**: Use `Write-Host` with color coding for user feedback
