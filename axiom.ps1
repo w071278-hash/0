@@ -356,6 +356,15 @@ Prompt-ServiceVerification `
         "Browse to /opt/stacks for Docker compose files"
     )
 
+Prompt-ServiceVerification `
+    -Module "09-ollama.sh" `
+    -Label "Ollama" `
+    -URLs @("https://g.$domain") `
+    -FrontEnd @("Local AI inference server running phi3:mini",
+        "REST API compatible with OpenAI format",
+        "Use Agent Zero or any OpenAI-compatible client pointed at this URL"
+    )
+
 # ============================================================================
 #  DEPLOYMENT COMPLETE
 # ============================================================================
@@ -371,6 +380,7 @@ Write-Host "    c.$domain  Agent Zero Alt 2" -ForegroundColor Gray
 Write-Host "    d.$domain  Cockpit" -ForegroundColor Gray
 Write-Host "    e.$domain  Dockge" -ForegroundColor Gray
 Write-Host "    f.$domain  FileBrowser" -ForegroundColor Gray
+Write-Host "    g.$domain  Ollama" -ForegroundColor Gray
 Write-Host ""
 Write-Host "  SECURITY:" -ForegroundColor White
 Write-Host "    Firewall: only SSH (22) exposed" -ForegroundColor Gray
@@ -379,5 +389,5 @@ Write-Host ""
 Write-Host "  NEXT STEPS:" -ForegroundColor White
 Write-Host "    - Change default passwords (FileBrowser, Cockpit)" -ForegroundColor Gray
 Write-Host "    - Consider Cloudflare Access for extra auth" -ForegroundColor Gray
-Write-Host "    - g-z.$domain available for future services" -ForegroundColor Gray
+Write-Host "    - h-z.$domain available for future services" -ForegroundColor Gray
 Write-Host ""
