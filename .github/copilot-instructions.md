@@ -302,8 +302,9 @@ wait_for_container "my-service" 120  # 2 minute timeout
 
 ### Using service registry
 ```bash
-# Extract service info from config
-# Services a-f are currently allocated (see 00-config.sh SERVICES array)
+# SERVICES is an associative array with letter keys (see 00-config.sh)
+# Current allocations: a=agent-zero-core, b=agent-zero-alt1, c=agent-zero-alt2,
+#                      d=cockpit, e=dockge, f=filebrowser
 # Use next available letter (g, h, i, etc.) for new services
 IFS='|' read -r name host_port container_port image description <<< "${SERVICES[g]}"
 log "Deploying $name ($description) on port $host_port"
