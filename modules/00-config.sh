@@ -1,10 +1,13 @@
 #!/bin/bash
-# ===...our service configuration...
-# 
+# ============================================================================
+#  PROJECT AXIOM v1.0.0 - CONFIGURATION
+# ============================================================================
+#  Single source of truth. Every module sources this file first.
+#
 #  DOMAIN STRATEGY:
 #    Subdomains a-z.willowcherry.us are allocated sequentially to services
 #    in deployment order. To add a service, claim the next free letter.
-# 
+#
 #  DEPLOYMENT ORDER (foundation-up):
 #    01  System prep (update/upgrade/conditional reboot)
 #    02  Core platform (Docker, base packages)
