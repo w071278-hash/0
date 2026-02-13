@@ -51,11 +51,11 @@ AZ_RFC_PASSWORD="AxiomSecureRFC2026!"
 AZ_ALLOWED_ORIGINS="*"
 
 # --- FIELD PARSERS ---
-svc_name()      { echo "$1" | cut -d'|'-f1; }
-svc_port()      { echo "$1" | cut -d'|'-f2; }
-svc_cport()     { echo "$1" | cut -d'|'-f3; }
-svc_image()     { echo "$1" | cut -d'|'-f4; }
-svc_desc()      { echo "$1" | cut -d'|'-f5; }
+svc_name()      { echo "$1" | cut -d'|' -f1; }
+svc_port()      { echo "$1" | cut -d'|' -f2; }
+svc_cport()     { echo "$1" | cut -d'|' -f3; }
+svc_image()     { echo "$1" | cut -d'|' -f4; }
+svc_desc()      { echo "$1" | cut -d'|' -f5; }
 
 # Return assigned subdomain letters in sorted order.
 assigned_letters() {
