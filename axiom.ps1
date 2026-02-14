@@ -19,7 +19,7 @@ function Write-Module {
     param([string]$Name, [string]$Content)
     $path  = Join-Path $script:TempModules $Name
     $clean = $Content -replace "`r`n", "`n" -replace "`r", "`n"
-    [System.IO.File]::WriteAllText($path, $clean, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText($path, $clean, [System.Text.UTF8Encoding]::new($false))
 }
 # --------------------------------------------------------------------------
 Write-Module "00-config.sh" @'
@@ -460,6 +460,7 @@ log "=== MODULE 09: Complete ==="
 function Get-SSHBase {
     return @(
         "-o", "StrictHostKeyChecking=no",
+        "-o", "UserKnownHostsFile=NUL",
         "-o", "ConnectTimeout=10",
         "-o", "LogLevel=ERROR",
         "-i", $script:KeyPath
