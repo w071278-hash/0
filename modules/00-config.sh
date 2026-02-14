@@ -17,7 +17,7 @@
 #    06  Agent Zero triad (a. b. c.)
 #    07  Dockge (e.)
 #    08  FileBrowser (f.)
-    09  Ollama (g.)
+#    09  Ollama (g.)
 # ============================================================================
 
 # --- VERSION ---
