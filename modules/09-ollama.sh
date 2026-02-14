@@ -13,14 +13,12 @@ source "$SCRIPT_DIR/lib.sh"
 
 require_root
 
-log "=== MODULE 09: Ollama Deployment ==="
+log "=== MODULE 09: Ollama ==="
 
 # Get Ollama service info
 entry="${SERVICES[g]}"
-name=$(svc_name "$entry")
-port=$(svc_port "$entry")
-cport=$(svc_cport "$entry")
-image=$(svc_image "$entry")
+name=$(svc_name "$entry"); port=$(svc_port "$entry")
+cport=$(svc_cport "$entry"); image=$(svc_image "$entry")
 desc=$(svc_desc "$entry")
 
 log "Deploying $desc on port $port..."
@@ -33,9 +31,7 @@ data_dir="$AXIOM_STACKS_DIR/ollama"
 ensure_dir "$data_dir"
 
 # Deploy Ollama with persistent model storage
-docker run -d \
-    --name "$name" \
-    --restart unless-stopped \
+docker run -d --name "$name" --restart unless-stopped \
     -p "${port}:${cport}" \
     -v "${data_dir}:/root/.ollama" \
     "$image"
@@ -43,13 +39,18 @@ docker run -d \
 # Wait for container to be ready
 wait_for_container "$name" 60
 
-# Verify HTTP endpoint
-check_http "http://localhost:${port}" 60 || log_warn "$name HTTP check failed (may still be initializing)"
+# Verify HTTP endpoint and emit health signal
+if check_http "http://localhost:${port}" 60; then
+    echo "AXIOM_HEALTH_PASS"
+else
+    log_warn "$name HTTP check failed"
+    echo "AXIOM_HEALTH_FAIL"
+fi
 
 # Pull the default model
-log "Pulling phi3:mini model (this may take a few minutes)..."
+log "Pulling phi3:mini (this may take several minutes)..."
 docker exec "$name" ollama pull phi3:mini
 
-log_success "$desc deployed: https://g.${AXIOM_DOMAIN}"
+log_success "$desc: https://g.${AXIOM_DOMAIN}"
 
 log "=== MODULE 09: Complete ==="
